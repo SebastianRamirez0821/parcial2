@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+
+    </style>
+    <title>Parcial2</title>
+    <script type="text/javascript" src="./libs/three.js"></script>
+    <script type="text/javascript" src="./libs/physi.js"></script>
+    <script type="text/javascript" src="./libs/dat.gui.js"></script>
+    <script type="text/javascript" src="./libs/chroma.js"></script>
+</head>
+
+<body>
+
+    <div id="viewport"></div>
+
+    <script type="text/javascript">
+        Physijs.scripts.worker = './libs/physijs_worker.js';
+        Physijs.scripts.ammo = '../libs/ammo.js';
+
+        var initScene, render, ground_material, box_material, barraMesh,
+            projector, renderer, render_stats, physics_stats, scene, ground, light, camera, box;
+        var BarraMaquina;
+
+        //inicio de la escena
+        function initScene() {
+            projector = new THREE.Projector;
+
+            renderer = new THREE.WebGLRenderer({
+                antialias: true
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(new THREE.Color(0x000000));
+            renderer.shadowMapEnabled = true;
+
+            document.getElementById('viewport').appendChild(renderer.domElement);
+
+            //Creacion de la escena
+            scene = new Physijs.Scene({
+                reportSize: 1,
+                fixedTimeStep: 0
+            });
+            //Creacion de la camara, en la primera parte de la pespectiva dejamos que tan cerca o lejos queremos la cara en 50 podemos ver y ocupar la gran parte de la mesa
+            camera = new THREE.PerspectiveCamera(
+                50,
+                window.innerWidth / window.innerHeight,
+                1,
+                1000
+            );
+
+            //Posicion de camara
+            camera.position.set(0, 80, 40);
+            camera.lookAt(new THREE.Vector3(0, 0, 0));
+            scene.add(camera);
+
+            // configuracion de la iluminacion
+            light = new THREE.SpotLight(0xFFFFFF, 2, 10000); //aca dejamos que tanto queremos de luz y el color
+            light.position.set(40, 80, 50);
+
+
+            //creamos la bola 
+            var point2point = createPointToPoint(true);
+
+            scene.add(light);
+            // Iniciacion del plano
+            createGround();
+
+            //Creacion de la barra del jugadorr
+            function createSliderBottom() {
+                var BarraJugador = new THREE.BoxGeometry(12, 2, 2);
+                var sliderMesh = new Physijs.BoxMesh(BarraJugador, Physijs.createMaterial(
+                    new THREE.MeshPhongMaterial({
+                        color: 0x351C75,
+                    }), 0, 0), 0.01);
+                //la posicion en la inicie  
+                sliderMesh.position.z = 25;
+                sliderMesh.position.x = 0;
+                sliderMesh.position.y = 2;
+
+                scene.add(sliderMesh);
+                var constraint = new Physijs.SliderConstraint(sliderMesh, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0));
+                return constraint;
+            }
+
+            //creacion de la barra de la cpu
+            function createBarraMaquina() {
+                BarraMaquina = new THREE.BoxGeometry(12, 2, 2);
+                BarraMaquina = new Physijs.BoxMesh(BarraMaquina, Physijs.createMaterial(
+                    new THREE.MeshPhongMaterial({
+                        color: 0xFF0000,
+                    }), 0, 0), 0.01);
+                //la posicion en la inicie
+                BarraMaquina.position.z = -25;
+                BarraMaquina.position.x = 10;
+                BarraMaquina.position.y = 2;
+                BarraMaquina.castShadow = true;
+                scene.add(BarraMaquina);
+                var constraint = new Physijs.SliderConstraint(BarraMaquina, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0));
+                //Colocamos los limites que debe llevar nuestra barra jugadora
+                scene.addConstraint(constraint);
+                constraint.setLimits(0, 10, 0, 0);
+
+                return constraint;
+
+            }
+
+            //Creamos el objeto esfera
+            function createPointToPoint() {
+                var esfera = new THREE.SphereGeometry(1);
+                var objectOne = new Physijs.SphereMesh(esfera, Physijs.createMaterial(
+                    new THREE.MeshPhongMaterial({
+                        color: 0xEEEEEE
+                    })
+                ));
+                //Posicion inicial de la esfera
+                objectOne.position.z = 0;
+                objectOne.position.x = 0;
+                objectOne.position.y = 1;
+                objectOne.castShadow = true;
+                scene.add(objectOne);
+                var constraint = new Physijs.SliderConstraint(objectOne, new THREE.Vector3(1, 0, 0), new THREE.Vector3(1, 0, 0));
+                scene.addConstraint(constraint);
+                constraint.setLimits(0, 0, 10, 0);
+
+                return constraint;
+
+            }
+
+            //creacion de la mesa del pong
+            function createGround() {
+                // Materiales utilizados de physijs
+                ground_material = Physijs.createMaterial(
+                    new THREE.MeshPhongMaterial({
+                        map: THREE.ImageUtils.loadTexture('./img/pong.jpg') //cargamos la textura que tenemos en la carpeta img
+                    })
+                );
+
+                //aca agregamos los efectos de la libreria physijs para el suelo y que no se caigan al vacio
+                ground = new Physijs.BoxMesh(
+                    new THREE.BoxGeometry(40, 1, 65),
+                    ground_material,
+                    0
+                );
+                ground.receiveShadow = true;
+                var borderTop = new Physijs.BoxMesh(
+                    new THREE.BoxGeometry(64, 6, 2),
+                    ground_material,
+                    0
+                );
+
+                ground.receiveShadow = true;
+                scene.add(ground);
+            }
+            //gravedad de la escena
+            scene.setGravity(new THREE.Vector3(0, -90, 0));
+
+            //Definimos las variables de las barras
+            var sliderBottomConstraint = createSliderBottom();
+            var sliderTopConstraint = createBarraMaquina();
+
+
+            requestAnimationFrame(render);
+            scene.simulate();
+        };
+
+        function render() {
+            scene.simulate(undefined, 2);
+            renderer.render(scene, camera);
+            requestAnimationFrame(render);
+        };
+
+        initScene();
+    </script>
+</body>
+
+</html>
